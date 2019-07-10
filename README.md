@@ -29,4 +29,4 @@ This project was built using the [akka-http](https://doc.akka.io/docs/akka-http/
 
 ## Make this project great again (or for the first time more accurately)
 
-This project is still in a very rough state. See the GitHub issues page for more details.
+This project is still in a very rough state. See the GitHub [issues](https://github.com/PrimozRoglic/ElevioViewer/issues) page for more details.

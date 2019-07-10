@@ -110,6 +110,7 @@ object ElevioViewer extends App {
 
       // ------------ Article List ------------
 
+      // this is a hack to remove Widgets from a FramePanel, since it is missing from library
       val resetArticles = () => {
         colA.widgets.trimEnd(colA.widgets.length)
         colA.tabs(colA.currentTab) = (colA.widgets, 0, colA.heights)
@@ -155,7 +156,7 @@ object ElevioViewer extends App {
       // ------------ Search ------------
 
       val input = Input(colC1, "Search")
-      
+
       // this is a hack to remove Widgets from a FramePanel, since it is missing from library
       val resetSearch = () => {
         colC1.widgets.trimEnd(colC1.widgets.length-2)

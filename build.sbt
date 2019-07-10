@@ -28,7 +28,6 @@ libraryDependencies += "com.typesafe.akka" %% "akka-stream" % "2.5.23"
 libraryDependencies += "net.team2xh" %% "onions" % "1.0.1"
 libraryDependencies += "net.team2xh" %% "scurses" % "1.0.1"
 libraryDependencies += "com.typesafe.akka" %% "akka-http-spray-json" % "10.1.8"
-libraryDependencies += "com.lihaoyi" %% "pprint" % "0.5.5"
 
 // Here, `libraryDependencies` is a set of dependencies, and by using `+=`,
 // we're adding the cats dependency to the set of dependencies that sbt will go

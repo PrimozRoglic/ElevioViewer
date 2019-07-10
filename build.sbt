@@ -12,8 +12,8 @@ scalaVersion := "2.12.8"
 
 // It's possible to define many kinds of settings, such as:
 
-name := "hello-world"
-organization := "ch.epfl.scala"
+name := "ElevioViewer"
+organization := "jan"
 version := "1.0"
 
 // Note, it's not required for you to define these three settings. These are
@@ -23,13 +23,12 @@ version := "1.0"
 
 // Want to use a published library in your project?
 // You can define other libraries as dependencies in your build like this:
-// libraryDependencies += "org.typelevel" %% "cats-core" % "1.6.0"
 libraryDependencies += "com.typesafe.akka" %% "akka-http"   % "10.1.8" 
 libraryDependencies += "com.typesafe.akka" %% "akka-stream" % "2.5.23"
 libraryDependencies += "net.team2xh" %% "onions" % "1.0.1"
 libraryDependencies += "net.team2xh" %% "scurses" % "1.0.1"
 libraryDependencies += "com.typesafe.akka" %% "akka-http-spray-json" % "10.1.8"
-
+libraryDependencies += "com.lihaoyi" %% "pprint" % "0.5.5"
 
 // Here, `libraryDependencies` is a set of dependencies, and by using `+=`,
 // we're adding the cats dependency to the set of dependencies that sbt will go

@@ -10,14 +10,11 @@ import models._
 
 import akka.http.scaladsl.unmarshalling.{Unmarshal, Unmarshaller}
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
-import spray.json.RootJsonFormat
-import spray.json.DefaultJsonProtocol._
 
 import scala.util.{ Failure, Success }
 
 class Client(val domain: String, val authKey: String, val jwt: String) {
 
-  
   // this stuff should be given by caller? 
   implicit val system = ActorSystem()
   implicit val materializer = ActorMaterializer()
@@ -27,9 +24,11 @@ class Client(val domain: String, val authKey: String, val jwt: String) {
   type QueryParam = (String, Option[Any])
 
   def getHeaders() = Seq(ApiKeyHeader(authKey), JwtHeader(s"Bearer ${jwt}"))
+
   def getUri(path: String, queryString: Option[String] = None): Uri = {
     Uri.from(scheme = "https", host = domain, path = path, queryString=queryString)
   }
+
   def flattenQueryParams(params: Seq[QueryParam]): Option[String] = {
     params.foldLeft(None: Option[String])((acc, curr) => {
       curr._2 match {
@@ -41,7 +40,14 @@ class Client(val domain: String, val authKey: String, val jwt: String) {
       }
     })
   }
-  def performRequest[M <: Model](uri: Uri, callback: M => Unit)(implicit um: Unmarshaller[HttpEntity, M]): Unit = {
+
+  def close() = {
+    system.terminate()
+  }
+
+  // maybe have seperate error callabacs?
+  def performRequest[M <: Model](uri: Uri, callback: M => Unit, errorCallback: Throwable => Unit)
+      (implicit um: Unmarshaller[HttpEntity, M]): Unit = {
     val request = HttpRequest(uri = uri).withHeaders(getHeaders())
     Http().singleRequest(request)
       .onComplete {
@@ -50,10 +56,10 @@ class Client(val domain: String, val authKey: String, val jwt: String) {
             case Success(a) => {
               callback(a)
             }
-            case Failure(s) => sys.error(s.getMessage())
+            case Failure(s) => errorCallback(s)
           }
         }
-        case Failure(s)   => sys.error(s.getMessage())
+        case Failure(s)   => errorCallback(s)
       }
   }
 
@@ -64,47 +70,64 @@ class Client(val domain: String, val authKey: String, val jwt: String) {
     }
   }
 
+
+  // ---------- Articles ----------
+
   def articlesUri(queryParams: Seq[QueryParam]): Uri = {
     getUri("/v1/articles", flattenQueryParams(queryParams))
   }
+
   def articlesQueryParams(page: Option[Int], pageSize: Option[Int]): Seq[QueryParam] = {
     Seq(("page", page), ("page_size", pageSize))
   }
-  def articles(page: Option[Int] = None, pageSize: Option[Int] = None, callback: Articles => Unit) = {
-    implicit val aritclesFormat = ArticlesProtocol.aritclesFormat
 
+  def articles(page: Option[Int] = None, pageSize: Option[Int] = None, 
+      callback: Articles => Unit, errorCallback: Throwable => Unit) = {
+    implicit val aritclesFormat = ArticlesProtocol.aritclesFormat
     val uri = articlesUri(articlesQueryParams(page, pageSize))
-    performRequest[Articles](uri, callback);
+    performRequest[Articles](uri, callback, errorCallback);
   }
+
+  // ---------- End of Articles ----------
+
+  // ---------- Article ---------- 
 
   def articleUri(id: Int): Uri = {
     getUri(s"/v1/articles/$id")
   }
-  def article(id: Int, callback: SingleArticle => Unit) = {
+
+  def article(id: Int, callback: SingleArticle => Unit, errorCallback: Throwable => Unit) = {
     implicit val singleArticleFormat = ArticlesProtocol.singleArticleFormat
     val uri = articleUri(id)
-    performRequest[SingleArticle](uri, callback);
+    performRequest[SingleArticle](uri, callback, errorCallback);
   }
+
+  // ---------- End of Article ---------- 
+
+  // ---------- Search ---------- 
 
   def searchUri(langCode: LangCode, queryParams: Seq[QueryParam]): Uri = {
     getUri(s"/v1/search/${langCodeToString(langCode)}", flattenQueryParams(queryParams))
   }
+
   def searchQueryParams(query: String, page: Option[Int], rows: Option[Int]): Seq[QueryParam] = {
     Seq(("page", page), ("rows", rows), ("query", Some(query)))
   }
+
   def search(langCode: LangCode = En(), 
               page: Option[Int] = None,
               rows: Option[Int] = None,
               query: String, 
-              callback: SearchResponse => Unit) {
+              callback: SearchResponse => Unit,
+              errorCallback: Throwable => Unit) {
     implicit val searchResponse = ArticlesProtocol.searchResponse
     val uri = searchUri(langCode, searchQueryParams(query, page, rows))
-    performRequest[SearchResponse](uri, callback);
+    performRequest[SearchResponse](uri, callback, errorCallback);
   }
+
+  // ---------- End of Search ---------- 
 }
 
 object Client {
-  def build(domain: String, authKey: String, jwt: String): Client = new Client(domain, authKey, jwt)
-
-  
+  def build(domain: String, authKey: String, jwt: String): Client = new Client(domain, authKey, jwt)  
 }

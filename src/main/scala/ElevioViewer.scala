@@ -1,24 +1,12 @@
 package elevio.viewer
 
-import net.team2xh.onions.{Palettes, Themes}
+import net.team2xh.onions.{Themes}
 import net.team2xh.onions.components.Frame
 import net.team2xh.onions.components.widgets._
-import net.team2xh.onions.utils.{Varying, Lorem, TextWrap}
-import net.team2xh.scurses.{Colors, Scurses}
-import net.team2xh.scurses.RichText._
+import net.team2xh.onions.utils.{Varying, TextWrap}
+import net.team2xh.scurses.{Scurses}
 
-import akka.actor.ActorSystem
-import akka.http.scaladsl.Http
-import akka.http.scaladsl.model._
-import akka.stream.ActorMaterializer
-
-import scala.concurrent.Future
-import scala.util.{ Failure, Success }
-
-import scala.collection.immutable.Seq
 import scala.io.Source
-
-import spray.json._
 
 import models._
 
@@ -27,6 +15,21 @@ case class Config (
   authKey: String,
   jwt: String
 )
+// this was an attempt to reduce repetition
+trait Pages {
+  var currentPage: Int
+  var totalPages: Int
+}
+object UIstate {
+  object ListState extends Pages {
+    var currentPage = 1
+    var totalPages = 100000
+  }
+  object SearchState extends Pages {
+    var currentPage = 1
+    var totalPages = 100000
+  }
+}
 
 object ElevioViewer extends App {
 
@@ -40,8 +43,8 @@ object ElevioViewer extends App {
 
   val client = Client.build(config.domain, config.authKey, config.jwt)
 
-  val searchPageSize = 3;
-  var currentSearchPage = 1;
+  // this could be configurable
+  val searchPageSize = 5;
 
   Scurses { implicit screen =>
     try {
@@ -56,32 +59,103 @@ object ElevioViewer extends App {
 
       colA.title = "Aritcle List"
       colB.title = "Selected Article"
-
       colC1.title = "Search"
       colC2.title = "Messages"
 
+      // ------------ Messages ------------
+
+      val messageString: Varying[String] = ""
+
+      val messageLabel = Label(colC2, messageString)
+
+      val defaultErrorCallback = (t: Throwable) => {
+        messageString := s"An error occured: ${t.getMessage()}"
+        frame.redraw();
+      }
+
+      // ------------ End of Messages ------------
+
+      // ------------ Article ------------
+
+      val translationToString = (translation: Translation) => {
+        translation match {
+          case Translation(id, title, body) => s"{title: $title | body: $body}" 
+        }
+      }
+
+      val authorToString = (author: Author) => {
+        author match {
+          case Author(id, name) => s"{id: $id | name: $name}"
+        }
+      }
+
+      val fullArticleToString = (fullArticle: FullArticle) => {
+        fullArticle match {
+          case FullArticle(id, _, author, translations) => {
+            s"{id: $id | author: ${authorToString(author)} | translation: ${translationToString(translations(0))}}"
+          }
+        }
+      }
+
       val articleString: Varying[String] = ""
+
       val articleLabel = Label(colB, articleString)
-      
 
       val updateArticle = (article: SingleArticle) => {
-        articleString := article.toString()
+        articleString := fullArticleToString(article.article)
+        frame.redraw();
+      }
+
+      // ------------ End of Article ------------
+
+      // ------------ Article List ------------
+
+      val resetArticles = () => {
+        colA.widgets.trimEnd(colA.widgets.length)
+        colA.tabs(colA.currentTab) = (colA.widgets, 0, colA.heights)
+      }
+
+      lazy val listAction = () => {
+        resetArticles()
+        client.articles(page=Some(UIstate.ListState.currentPage), pageSize=Some(searchPageSize),
+          callback = showArticles, errorCallback = defaultErrorCallback)
+      }
+
+      lazy val showArticles: (Articles) => Unit = (articles: Articles) => {
+        UIstate.ListState.totalPages = articles.total_pages
+        articles.articles.foreach((article: Article) => {
+          Label(colA, s"${article.id}: ${article.title}", action = () => client.article(article.id, updateArticle, errorCallback = defaultErrorCallback))
+        })
+        if (UIstate.ListState.currentPage < UIstate.ListState.totalPages) {
+          Label(colA, "Next", TextWrap.CENTER, action = () => {
+            UIstate.ListState.currentPage += 1
+            listAction()
+          })
+        }
+        if (UIstate.ListState.currentPage > 1) {
+          Label(colA, "Prev", TextWrap.CENTER, action = () => {
+            UIstate.ListState.currentPage -= 1
+            listAction()
+          })
+        }
+        Label(colA, s"Page ${UIstate.ListState.currentPage}/${UIstate.ListState.totalPages}", TextWrap.CENTER)
         frame.redraw();
       }
 
       val updateArticles = (articles: Articles) => {
+        UIstate.SearchState.currentPage = 1
         articles.articles.foreach((article: Article) => {
-          Label(colA, s"${article.id}: ${article.title}", action = () => client.article(article.id, updateArticle))
+          Label(colA, s"${article.id}: ${article.title}", action = () => client.article(article.id, updateArticle, errorCallback = defaultErrorCallback))
         })
         frame.redraw();
       }
 
+      // ------------ End of Article List ------------
 
-
-
+      // ------------ Search ------------
 
       val input = Input(colC1, "Search")
-
+      
       // this is a hack to remove Widgets from a FramePanel, since it is missing from library
       val resetSearch = () => {
         colC1.widgets.trimEnd(colC1.widgets.length-2)
@@ -90,45 +164,50 @@ object ElevioViewer extends App {
 
       lazy val searchAction = () => {
         resetSearch()
-        client.search(page=Some(currentSearchPage), rows=Some(searchPageSize),
-          query=input.text.value, callback=showSearch)
+        client.search(page=Some(UIstate.SearchState.currentPage), rows=Some(searchPageSize),
+          query=input.text.value, callback=showSearch, errorCallback = defaultErrorCallback)
       }
 
-
       Label(colC1, "GO", TextWrap.CENTER, action = () => {
-        currentSearchPage = 1
+        UIstate.SearchState.currentPage = 1
         searchAction()
       })
 
-
-
       lazy val showSearch: (SearchResponse) => Unit = (searchResponse: SearchResponse) => {
+        UIstate.SearchState.totalPages = searchResponse.totalPages
         searchResponse.results.foreach((article: SearchArticle) => {
-          Label(colC1, s"${article.id}: ${article.title}", action = () => client.article(article.id.toInt, updateArticle))
+          Label(colC1, s"${article.id}: ${article.title}", action = () => client.article(article.id.toInt, updateArticle, errorCallback = defaultErrorCallback))
         })
-        Label(colC1, "Next", TextWrap.CENTER, action = () => {
-          currentSearchPage += 1
-          searchAction()
-        })
-        Label(colC1, "Prev", TextWrap.CENTER, action = () => {
-          currentSearchPage -= 1
-          searchAction()
-        })
+        if (UIstate.SearchState.currentPage < UIstate.SearchState.totalPages) {
+          Label(colC1, "Next", TextWrap.CENTER, action = () => {
+            UIstate.SearchState.currentPage += 1
+            searchAction()
+          })
+        }
+        if (UIstate.SearchState.currentPage > 1) {
+          Label(colC1, "Prev", TextWrap.CENTER, action = () => {
+            UIstate.SearchState.currentPage -= 1
+            searchAction()
+          })
+        }
+        Label(colC1, s"Page ${UIstate.SearchState.currentPage}/${UIstate.SearchState.totalPages}", TextWrap.CENTER)
         frame.redraw();
       }
 
-      
+      // ------------ End of Search ------------
 
-      client.articles(callback = updateArticles)
-
+      // init 
+      listAction()
       frame.show()
+
     } catch {
-      case e => {
+      case e: Throwable => {
         screen.close()
+        client.close()
         e.printStackTrace()
       }
     }
   }
 
-  client.system.terminate();
+  client.close();
 }

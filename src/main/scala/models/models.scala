@@ -2,14 +2,31 @@ package elevio.viewer.models
 
 import spray.json._
 import DefaultJsonProtocol._
-import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 
 // sum type
 sealed trait Model
 
 case class SingleArticle(
-  article: Article
+  article: FullArticle
 ) extends Model
+
+case class FullArticle(
+  id: Int,
+  title: String,
+  author: Author,
+  translations: Seq[Translation]
+) extends Model
+
+case class Author(
+  id: Int,
+  name: String
+)
+
+case class Translation(
+  id: Int,
+  title: String,
+  body: String
+)
 
 case class Article(
   id: Int,
@@ -41,13 +58,15 @@ case class SearchResponse(
 object ArticlesProtocol extends DefaultJsonProtocol {
   implicit val aritcleFormat = jsonFormat2(Article)
   implicit val aritclesFormat = jsonFormat5(Articles)
+  implicit val authorFormat = jsonFormat2(Author)
+  implicit val translationFormat = jsonFormat3(Translation)
+  implicit val fullArticleFormat = jsonFormat4(FullArticle)
   implicit val singleArticleFormat = jsonFormat1(SingleArticle)
   implicit val searchArticle = jsonFormat2(SearchArticle)
   implicit val searchResponse = jsonFormat6(SearchResponse)
 }
 
-import scala.reflect.ClassTag
-
+// sum type
 sealed trait LangCode
 
 case class En() extends LangCode

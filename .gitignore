@@ -1,0 +1,23 @@
+# OS X
+.DS_Store
+
+# IntelliJ
+.idea/
+
+# Scala
+*.class
+*.log
+
+# SBT
+.cache
+.history
+.lib/
+dist/*
+target/
+lib_managed/
+src_managed/
+project/boot/
+project/plugins/project/
+
+# Config
+config
